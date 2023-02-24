@@ -1,7 +1,7 @@
 # vim: expandtab:ts=4:sw=4
 import numpy as np
 import scipy.linalg
-from opts import opt
+# from opts import opt
 """
 Table for the 0.95 quantile of the chi-square distribution with N degrees of
 freedom (contains values for N=1, ..., 9). Taken from MATLAB/Octave's chi2inv
@@ -36,7 +36,7 @@ class KalmanFilter(object):
 
     """
 
-    def __init__(self):
+    def __init__(self, nsa: bool = True):
         ndim, dt = 4, 1.
 
         # Create Kalman filter model matrices.
@@ -51,6 +51,9 @@ class KalmanFilter(object):
         # the model. This is a bit hacky.
         self._std_weight_position = 1. / 20
         self._std_weight_velocity = 1. / 160
+
+        # modified kalman filter
+        self.nsa = nsa
 
     def initiate(self, measurement):
         """Create track from unassociated measurement.
@@ -145,7 +148,7 @@ class KalmanFilter(object):
             1e-1,
             self._std_weight_position * mean[3]]
 
-        if opt.NSA:
+        if self.nsa:
             std = [(1 - confidence) * x for x in std]
 
         innovation_cov = np.diag(np.square(std))
@@ -175,7 +178,7 @@ class KalmanFilter(object):
             Returns the measurement-corrected state distribution.
 
         """
-        projected_mean, projected_cov = self.project(mean, covariance, confidence)
+        projected_mean, projected_cov = self.project(mean, covariance, confidence)  # noqa
 
         chol_factor, lower = scipy.linalg.cho_factor(
             projected_cov, lower=True, check_finite=False)

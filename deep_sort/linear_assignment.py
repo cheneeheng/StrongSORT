@@ -1,9 +1,10 @@
 # vim: expandtab:ts=4:sw=4
 from __future__ import absolute_import
 import numpy as np
-from sklearn.utils.linear_assignment_ import linear_assignment
+# from sklearn.utils.linear_assignment_ import linear_assignment
+from scipy.optimize import linear_sum_assignment as linear_assignment
 from . import kalman_filter
-from opts import opt
+# from opts import opt
 
 INFTY_COST = 1e+5
 
@@ -15,7 +16,7 @@ def min_cost_matching(
 
     Parameters
     ----------
-    distance_metric : Callable[List[Track], List[Detection], List[int], List[int]) -> ndarray
+    distance_metric : Callable[List[Track], List[Detection], List[int], List[int]) -> ndarray  # noqa
         The distance metric is given a list of tracks and detections as well as
         a list of N track indices and M detection indices. The metric should
         return the NxM dimensional cost matrix, where element (i, j) is the
@@ -59,6 +60,7 @@ def min_cost_matching(
     cost_matrix_ = cost_matrix.copy()
 
     indices = linear_assignment(cost_matrix_)
+    indices = np.asarray(indices).transpose()
 
     matches, unmatched_tracks, unmatched_detections = [], [], []
     for col, detection_idx in enumerate(detection_indices):
@@ -80,12 +82,12 @@ def min_cost_matching(
 
 def matching_cascade(
         distance_metric, max_distance, cascade_depth, tracks, detections,
-        track_indices=None, detection_indices=None):
+        track_indices=None, detection_indices=None, woc=True):
     """Run matching cascade.
 
     Parameters
     ----------
-    distance_metric : Callable[List[Track], List[Detection], List[int], List[int]) -> ndarray
+    distance_metric : Callable[List[Track], List[Detection], List[int], List[int]) -> ndarray  # noqa
         The distance metric is given a list of tracks and detections as well as
         a list of N track indices and M detection indices. The metric should
         return the NxM dimensional cost matrix, where element (i, j) is the
@@ -107,6 +109,9 @@ def matching_cascade(
         List of detection indices that maps columns in `cost_matrix` to
         detections in `detections` (see description above). Defaults to all
         detections.
+    woc : bool
+        If True, runs vanilla matching, if not uses cascade matching from
+        deepsort.
 
     Returns
     -------
@@ -124,7 +129,7 @@ def matching_cascade(
 
     unmatched_detections = detection_indices
     matches = []
-    if opt.woC:
+    if woc:
         track_indices_l = [
             k for k in track_indices
             # if tracks[k].time_since_update == 1 + level
@@ -154,9 +159,10 @@ def matching_cascade(
     unmatched_tracks = list(set(track_indices) - set(k for k, _ in matches))
     return matches, unmatched_tracks, unmatched_detections
 
+
 def gate_cost_matrix(
         cost_matrix, tracks, detections, track_indices, detection_indices,
-        gated_cost=INFTY_COST, only_position=False):
+        gated_cost=INFTY_COST, only_position=False, mc_lambda=0.98):
     """Invalidate infeasible entries in cost matrix based on the state
     distributions obtained by Kalman filtering.
 
@@ -183,6 +189,8 @@ def gate_cost_matrix(
     only_position : Optional[bool]
         If True, only the x, y position of the state distribution is considered
         during gating. Defaults to False.
+    mc_lambda : Optional[float]
+        lambda value in Eq. 4 of the strongsort paper.
 
     Returns
     -------
@@ -192,12 +200,15 @@ def gate_cost_matrix(
     """
     assert not only_position
     gating_threshold = kalman_filter.chi2inv95[4]
-    measurements = np.asarray([detections[i].to_xyah() for i in detection_indices])
+    measurements = np.asarray([detections[i].to_xyah()
+                               for i in detection_indices])
     for row, track_idx in enumerate(track_indices):
         track = tracks[track_idx]
-        gating_distance = track.kf.gating_distance(track.mean, track.covariance, measurements, only_position)
+        gating_distance = track.kf.gating_distance(
+            track.mean, track.covariance, measurements, only_position)
         cost_matrix[row, gating_distance > gating_threshold] = gated_cost
-        if opt.MC:
-            cost_matrix[row] = opt.MC_lambda * cost_matrix[row] + (1 - opt.MC_lambda) *  gating_distance
+        if mc_lambda is not None:
+            cost_matrix[row] = mc_lambda * cost_matrix[row] + \
+                (1 - mc_lambda) * gating_distance
 
     return cost_matrix
