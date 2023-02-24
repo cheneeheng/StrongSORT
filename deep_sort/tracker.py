@@ -5,7 +5,6 @@ import numpy as np
 from . import linear_assignment
 from . import iou_matching
 from .track import Track
-# from opts import opt
 
 
 class Tracker:
@@ -37,7 +36,7 @@ class Tracker:
     """
 
     def __init__(self, metric, max_iou_distance=0.7, max_age=30, n_init=3,
-                 woc=True, ema_alpha=0.9, mc_lambda=0.98, nsa=True):
+                 options=None):
         self.metric = metric
         self.max_iou_distance = max_iou_distance
         self.max_age = max_age
@@ -46,10 +45,7 @@ class Tracker:
         self.tracks = []
         self._next_id = 1
 
-        self.woc = woc
-        self.ema_alpha = ema_alpha
-        self.mc_lambda = mc_lambda
-        self.nsa = nsa
+        self.opt = options
 
     def predict(self):
         """Propagate track state distributions one time step forward.
@@ -93,7 +89,7 @@ class Tracker:
                 continue
             features += track.features
             targets += [track.track_id for _ in track.features]
-            if self.ema_alpha is None:
+            if not self.opt.EMA:
                 track.features = []
         self.metric.partial_fit(
             np.asarray(features), np.asarray(targets), active_targets)
@@ -106,7 +102,8 @@ class Tracker:
             cost_matrix = self.metric.distance(features, targets)
             cost_matrix = linear_assignment.gate_cost_matrix(
                 cost_matrix, tracks, dets, track_indices,
-                detection_indices, mc_lambda=self.mc_lambda)
+                detection_indices, options=self.opt)
+
             return cost_matrix
 
         # Split track set into confirmed and unconfirmed tracks.
@@ -119,7 +116,7 @@ class Tracker:
         matches_a, unmatched_tracks_a, unmatched_detections = \
             linear_assignment.matching_cascade(
                 gated_metric, self.metric.matching_threshold, self.max_age,
-                self.tracks, detections, confirmed_tracks, woc=self.woc)
+                self.tracks, detections, confirmed_tracks, options=self.opt)
 
         # Associate remaining tracks together with unconfirmed tracks using IOU.
         iou_track_candidates = unconfirmed_tracks + [
@@ -140,6 +137,5 @@ class Tracker:
     def _initiate_track(self, detection):
         self.tracks.append(Track(
             detection.to_xyah(), self._next_id, self.n_init, self.max_age,
-            detection.feature, detection.confidence,
-            ema_alpha=self.ema_alpha, nsa=self.nsa))
+            detection.feature, detection.confidence, options=self.opt))
         self._next_id += 1

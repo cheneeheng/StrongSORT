@@ -11,7 +11,7 @@ from os.path import join
 
 data = {
     'MOT17': {
-        'val':[
+        'val': [
             'MOT17-02-FRCNN',
             'MOT17-04-FRCNN',
             'MOT17-05-FRCNN',
@@ -20,7 +20,7 @@ data = {
             'MOT17-11-FRCNN',
             'MOT17-13-FRCNN'
         ],
-        'test':[
+        'test': [
             'MOT17-01-FRCNN',
             'MOT17-03-FRCNN',
             'MOT17-06-FRCNN',
@@ -31,7 +31,7 @@ data = {
         ]
     },
     'MOT20': {
-        'test':[
+        'test': [
             'MOT20-04',
             'MOT20-06',
             'MOT20-07',
@@ -40,17 +40,20 @@ data = {
     }
 }
 
+
 class opts:
     def __init__(self):
         self.parser = argparse.ArgumentParser()
         self.parser.add_argument(
-            'dataset',
+            '--dataset',
             type=str,
+            default='MOT17',
             help='MOT17 or MOT20',
         )
         self.parser.add_argument(
-            'mode',
+            '--mode',
             type=str,
+            default='val',
             help='val or test',
         )
         self.parser.add_argument(
@@ -116,18 +119,18 @@ class opts:
 
     def parse(self, args=''):
         if args == '':
-          opt = self.parser.parse_args()
+            opt = self.parser.parse_args()
         else:
-          opt = self.parser.parse_args(args)
+            opt = self.parser.parse_args(args)
         opt.min_confidence = 0.6
         opt.nms_max_overlap = 1.0
         opt.min_detection_height = 0
         if opt.BoT:
             opt.max_cosine_distance = 0.4
-            opt.dir_dets = '/data/dyh/results/StrongSORT_Git/{}_{}_YOLOX+BoT'.format(opt.dataset, opt.mode)
+            opt.dir_dets = '/data/dyh/results/StrongSORT_Git/{}_{}_YOLOX+BoT'.format(opt.dataset, opt.mode)  # noqa
         else:
             opt.max_cosine_distance = 0.3
-            opt.dir_dets = '/data/dyh/results/StrongSORT_Git/{}_{}_YOLOX+simpleCNN'.format(opt.dataset, opt.mode)
+            opt.dir_dets = '/data/dyh/results/StrongSORT_Git/{}_{}_YOLOX+simpleCNN'.format(opt.dataset, opt.mode)  # noqa
         if opt.MC:
             opt.max_cosine_distance += 0.05
         if opt.EMA:
@@ -135,7 +138,7 @@ class opts:
         else:
             opt.nn_budget = 100
         if opt.ECC:
-            path_ECC = '/data/dyh/results/StrongSORT_Git/{}_ECC_{}.json'.format(opt.dataset, opt.mode)
+            path_ECC = '/data/dyh/results/StrongSORT_Git/{}_ECC_{}.json'.format(opt.dataset, opt.mode)  # noqa
             opt.ecc = json.load(open(path_ECC))
         opt.sequences = data[opt.dataset][opt.mode]
         opt.dir_dataset = join(
@@ -144,5 +147,6 @@ class opts:
             'train' if opt.mode == 'val' else 'test'
         )
         return opt
+
 
 opt = opts().parse()

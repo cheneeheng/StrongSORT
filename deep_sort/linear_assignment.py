@@ -4,7 +4,6 @@ import numpy as np
 # from sklearn.utils.linear_assignment_ import linear_assignment
 from scipy.optimize import linear_sum_assignment as linear_assignment
 from . import kalman_filter
-# from opts import opt
 
 INFTY_COST = 1e+5
 
@@ -82,12 +81,12 @@ def min_cost_matching(
 
 def matching_cascade(
         distance_metric, max_distance, cascade_depth, tracks, detections,
-        track_indices=None, detection_indices=None, woc=True):
+        track_indices=None, detection_indices=None, options=None):
     """Run matching cascade.
 
     Parameters
     ----------
-    distance_metric : Callable[List[Track], List[Detection], List[int], List[int]) -> ndarray  # noqa
+    distance_metric : Callable[List[Track], List[Detection], List[int], List[int]) -> ndarray # noqa
         The distance metric is given a list of tracks and detections as well as
         a list of N track indices and M detection indices. The metric should
         return the NxM dimensional cost matrix, where element (i, j) is the
@@ -109,9 +108,6 @@ def matching_cascade(
         List of detection indices that maps columns in `cost_matrix` to
         detections in `detections` (see description above). Defaults to all
         detections.
-    woc : bool
-        If True, runs vanilla matching, if not uses cascade matching from
-        deepsort.
 
     Returns
     -------
@@ -129,7 +125,7 @@ def matching_cascade(
 
     unmatched_detections = detection_indices
     matches = []
-    if woc:
+    if options.woC:
         track_indices_l = [
             k for k in track_indices
             # if tracks[k].time_since_update == 1 + level
@@ -162,7 +158,7 @@ def matching_cascade(
 
 def gate_cost_matrix(
         cost_matrix, tracks, detections, track_indices, detection_indices,
-        gated_cost=INFTY_COST, only_position=False, mc_lambda=0.98):
+        gated_cost=INFTY_COST, only_position=False, options=None):
     """Invalidate infeasible entries in cost matrix based on the state
     distributions obtained by Kalman filtering.
 
@@ -189,8 +185,6 @@ def gate_cost_matrix(
     only_position : Optional[bool]
         If True, only the x, y position of the state distribution is considered
         during gating. Defaults to False.
-    mc_lambda : Optional[float]
-        lambda value in Eq. 4 of the strongsort paper.
 
     Returns
     -------
@@ -200,15 +194,16 @@ def gate_cost_matrix(
     """
     assert not only_position
     gating_threshold = kalman_filter.chi2inv95[4]
-    measurements = np.asarray([detections[i].to_xyah()
-                               for i in detection_indices])
+    measurements = np.asarray(
+        [detections[i].to_xyah() for i in detection_indices])
     for row, track_idx in enumerate(track_indices):
         track = tracks[track_idx]
         gating_distance = track.kf.gating_distance(
             track.mean, track.covariance, measurements, only_position)
         cost_matrix[row, gating_distance > gating_threshold] = gated_cost
-        if mc_lambda is not None:
-            cost_matrix[row] = mc_lambda * cost_matrix[row] + \
-                (1 - mc_lambda) * gating_distance
+        if options.MC:
+            cost_matrix[row] = \
+                options.MC_lambda * cost_matrix[row] + \
+                (1 - options.MC_lambda) * gating_distance
 
     return cost_matrix
