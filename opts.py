@@ -119,9 +119,9 @@ class opts:
 
     def parse(self, args=''):
         if args == '':
-            opt = self.parser.parse_args()
+            opt, _ = self.parser.parse_known_args()
         else:
-            opt = self.parser.parse_args(args)
+            opt, _ = self.parser.parse_known_args(args)
         opt.min_confidence = 0.6
         opt.nms_max_overlap = 1.0
         opt.min_detection_height = 0
