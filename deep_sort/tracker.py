@@ -68,6 +68,10 @@ class Tracker:
             A list of detections at the current time step.
 
         """
+        for i, track in enumerate(self.tracks):
+            track.det_id = -1
+            self.tracks[i] = track
+
         # Run matching cascade.
         matches, unmatched_tracks, unmatched_detections = \
             self._match(detections)
